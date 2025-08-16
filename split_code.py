@@ -4,7 +4,7 @@ import sys
 
 def split_code():
     # Change 'main_program.py' to whatever your file is actually called
-    main_file = 'main_program.py'
+    main_file = 'main.py'
     
     if not os.path.exists(main_file):
         print(f"Error: {main_file} not found!")
