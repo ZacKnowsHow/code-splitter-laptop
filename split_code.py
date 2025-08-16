@@ -3,7 +3,7 @@ import os
 import sys
 
 def split_code():
-    # Change 'main_program.py' to whatever your file is actually called
+    # Change 'main_program.py' to whatever your file is actually call
     main_file = 'main.py'
     
     if not os.path.exists(main_file):
