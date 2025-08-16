@@ -16,7 +16,7 @@ def split_code():
     total_lines = len(lines)
     print(f"Total lines: {total_lines}")
     
-    # Split exactly as you requested
+    # Split exactly as you request
     part1_lines = lines[:2400]
     part2_lines = lines[2400:4800]
     part3_lines = lines[4800:7200]

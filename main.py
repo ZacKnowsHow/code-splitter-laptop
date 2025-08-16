@@ -1,6 +1,6 @@
 programme_to_run = 1
-#0 = facebook
-#1 = vinted
+#0 == facebook
+#1 == vinted
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
