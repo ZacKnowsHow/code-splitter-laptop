@@ -4847,6 +4847,6 @@ if __name__ == "__main__":
         globals()['vinted_scraper_instance'] = scraper
         
         # Replace the normal search with enhanced version in the run method
-        # Modify the run() method to use search_vinted_enhanced instead of search_vinted.
+        # Modify the run() method to use search_vinted_enhanced instead of search_vinted
     
     scraper.run()
