@@ -143,7 +143,7 @@ recent_listings = {
 
 MAX_LISTINGS_TO_SCAN = 50
 REFRESH_AND_RESCAN = True  # Set to False to disable refresh functionality
-MAX_LISTINGS_VINTED_TO_SCAN = 200  # Maximum listings to scan before refresh
+MAX_LISTINGS_VINTED_TO_SCAN = 250  # Maximum listings to scan before refresh
 wait_after_max_reached_vinted = 30  # Seconds to wait between refresh cycles (5 minutes)
 VINTED_SCANNED_IDS_FILE = "vinted_scanned_ids.txt"
 FAILURE_REASON_LISTED = True
@@ -451,6 +451,8 @@ def vinted_button_clicked():
         return 'ERROR PROCESSING REQUEST', 500
 
 
+# Replace the render_main_page function starting at line ~465 with this modified version
+
 def render_main_page():
     try:
         # Access global variables
@@ -571,14 +573,24 @@ def render_main_page():
                 }}
                 .custom-button {{
                     width: 100%;
-                    padding: 10px;
+                    padding: 12px;
                     color: white;
                     border: none;
                     border-radius: 10px;
-                    font-size: 15px;
+                    font-size: 16px;
+                    font-weight: bold;
                     touch-action: manipulation;
                     -webkit-tap-highlight-color: transparent;
                     cursor: pointer;
+                    transition: all 0.2s ease;
+                }}
+                .custom-button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                }}
+                .custom-button:active {{
+                    transform: translateY(0);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                 }}
                 .section-box, .financial-row, .details-row {{
                     border: 1px solid black;
@@ -663,19 +675,16 @@ def render_main_page():
                     margin-top: 10px;
                     font-weight: bold;
                 }}
-                .price-button-container {{
+                .single-button-container {{
                     display: flex;
                     flex-direction: column;
-                    gap: 5px;
-                    margin-top: 10px;
-                }}
-                .button-row {{
-                    display: flex;
-                    justify-content: space-between;
                     gap: 10px;
+                    margin: 15px 0;
                 }}
-                .button-row .custom-button {{
-                    flex: 1;
+                .open-listing-button {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    font-size: 18px;
+                    padding: 15px;
                 }}
             </style>
             <script>
@@ -742,40 +751,17 @@ def render_main_page():
                     }}
                 }}
 
-                // Modified function to handle both Facebook and Vinted buttons
-                function handleButtonClick(priceIncrement) {{
+                // NEW: Single button function to open listing directly
+                function openListing() {{
                     var urlElement = document.querySelector('.content-url');
                     var url = urlElement ? urlElement.textContent.trim() : '';
-                    var priceElement = document.querySelector('.content-price');
-                    var websitePrice = priceElement ? priceElement.textContent.trim() : '';
-                    var titleElement = document.querySelector('.content-title');
-                    var descriptionElement = document.querySelector('.content-description');
-                    var websiteTitle = titleElement ? titleElement.textContent.trim() : 'No Title';
-                    var websiteDescription = descriptionElement ? descriptionElement.textContent.trim() : 'No Description';
-
-                    // Check if this is a Vinted listing based on URL
-                    var isVintedListing = url.includes('vinted.co.uk') || url.includes('vinted.com');
-                    var endpoint = isVintedListing ? '/vinted-button-clicked' : '/button-clicked';
-
-                    console.log('Button clicked on listing: ' + url);
-
-                    fetch(endpoint, {{
-                        method: 'POST',
-                        headers: {{
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        }},
-                        body: `url=${{encodeURIComponent(url)}}&website_price=${{encodeURIComponent(websitePrice)}}&website_title=${{encodeURIComponent(websiteTitle)}}&website_description=${{encodeURIComponent(websiteDescription)}}&price_increment=${{priceIncrement}}`
-                    }})
-                    .then(response => {{
-                        if (response.ok) {{
-                            console.log('Button clicked successfully');
-                        }} else {{
-                            console.error('Failed to click button');
-                        }}
-                    }})
-                    .catch(error => {{
-                        console.error('Error:', error);
-                    }});
+                    
+                    if (url && url !== 'No URL Available') {{
+                        console.log('Opening listing:', url);
+                        window.open(url, '_blank');
+                    }} else {{
+                        alert('No valid URL available for this listing');
+                    }}
                 }}
 
                 // Initialize display on page load
@@ -811,16 +797,14 @@ def render_main_page():
                 <div class="section-box">
                     <p><span class="content-description">{description}</span></p>
                 </div>
-                <div class="price-button-container">
-                    <div class="button-row">
-                        <button class="custom-button" onclick="handleButtonClick(5)" style="background-color:rgb(109,171,96);">Message price + £5</button>
-                        <button class="custom-button" onclick="handleButtonClick(10)" style="background-color:rgb(79,158,196);">Message price + £10</button>
-                    </div>
-                    <div class="button-row">
-                        <button class="custom-button" onclick="handleButtonClick(15)" style="background-color:rgb(151,84,80);">Message price + £15</button>
-                        <button class="custom-button" onclick="handleButtonClick(20)" style="background-color: rgb(192,132,17);">Message price + £20</button>
-                    </div>
+                
+                <!-- MODIFIED: Single button instead of 4 small buttons -->
+                <div class="single-button-container">
+                    <button class="custom-button open-listing-button" onclick="openListing()">
+                        🔗 Open Listing in New Tab
+                    </button>
                 </div>
+                
                 <div class="details-row">
                     <div class="details-item">
                         <p><span class="content-detected-items">{detected_items}</span></p>
@@ -849,7 +833,6 @@ def render_main_page():
         print(f"ERROR in render_main_page: {e}")
         print(f"Traceback: {error_details}")
         return f"<html><body><h1>Error in render_main_page</h1><pre>{error_details}</pre></body></html>"
-# Helper function for base64 encoding
 
 def base64_encode_image(img):
     """Convert PIL Image to base64 string, resizing if necessary"""
