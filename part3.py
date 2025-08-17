@@ -1,3 +1,28 @@
+        # Initialize ALL global variables properly
+        suitable_listings = []
+        current_listing_index = 0
+        
+        # **CRITICAL FIX: Initialize recent_listings for website navigation**
+        recent_listings = {
+            'listings': [],
+            'current_index': 0
+        }
+        
+        # Initialize all current listing variables
+        current_listing_title = "No title"
+        current_listing_description = "No description"
+        current_listing_join_date = "No join date"
+        current_listing_price = "0"
+        current_expected_revenue = "0"
+        current_profit = "0"
+        current_detected_items = "None"
+        current_listing_images = []
+        current_listing_url = ""
+        current_suitability = "Suitability unknown"
+        
+        # Initialize pygame display with default values
+        self.update_listing_details("", "", "", "0", 0, 0, {}, [], {})
+        
         # Start Flask app in separate thread
         flask_thread = threading.Thread(target=self.run_flask_app)
         flask_thread.daemon = True

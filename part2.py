@@ -372,130 +372,97 @@
             print(f"Error saving image: {str(e)}")
             return False
 
-    def perform_object_detection(self, image_paths, listing_title, listing_description):
-        if not image_paths:
+    def perform_detection_on_listing_images(self, model, listing_dir):
+        """
+        Enhanced object detection with all Facebook exceptions and logic
+        MODIFIED: All game classes are now capped at 1 per listing
+        """
+        if not os.path.isdir(listing_dir):
             return {}, []
 
-        model = YOLO(model_weights)
-        detected_objects = {class_name: [] for class_name in class_names}
+        detected_objects = {class_name: [] for class_name in CLASS_NAMES}
         processed_images = []
-        confidences = {item: 0 for item in mutually_exclusive_items}
+        confidences = {item: 0 for item in ['switch', 'oled', 'lite', 'switch_box', 'oled_box', 'lite_box', 'switch_in_tv', 'oled_in_tv']}
 
-        # NEW CODE SECTION: Add console detection based on title and description
-        listing_title_lower = listing_title.lower()
-        listing_description_lower = listing_description.lower()
-        
-        # Check for console keywords in title and description
-        console_keywords = {
-            'switch console': 'switch',
-            'swith console': 'switch',
-            'switc console': 'switch',
-            'swich console': 'switch',
-            'oled console': 'oled',
-            'lite console': 'lite'
-        }
-        
-        # Check if title contains console keywords
-        title_contains_console = any(keyword in listing_title_lower for keyword in console_keywords.keys())
-        
-        # Check if description contains console keywords and title contains relevant terms
-        desc_contains_console = any(
-            keyword in listing_description_lower and 
-            any(term in listing_title_lower for term in ['nintendo switch', 'oled', 'lite'])
-            for keyword in console_keywords.keys()
-        )
-        
-        # If either condition is met, add the appropriate console to detected objects
-        # and ensure other mutually exclusive items are set to 0
-        if title_contains_console or desc_contains_console:
-            for keyword, console_type in console_keywords.items():
-                if keyword in listing_title_lower or keyword in listing_description_lower:
-                    # Set the detected console to 1
-                    detected_objects[console_type] = [1]
-                    
-                    # Ensure all other mutually exclusive items are set to 0
-                    for item in mutually_exclusive_items:
-                        if item != console_type:
-                            detected_objects[item] = [0]
-                    
-                    break
+        image_files = [f for f in os.listdir(listing_dir) if f.endswith('.png')]
+        if not image_files:
+            return {class_name: 0 for class_name in CLASS_NAMES}, processed_images
 
-        # NEW CODE SECTION: Detect anonymous games in description
-        anonymous_games_count = 0
-        if 'x games' in listing_description_lower:
-            match = re.search(r'(\d+)\s*x\s*games', listing_description_lower)
-            if match:
-                anonymous_games_count = int(match.group(1))
-        
-        for image_path in image_paths:
+        for image_file in image_files:
+            image_path = os.path.join(listing_dir, image_file)
             try:
                 img = cv2.imread(image_path)
-                image_detections = {class_name: 0 for class_name in class_names}
-                
-                for result in model(img):
-                    for box in result.boxes.cpu().numpy():
-                        cls, conf = int(box.cls[0]), box.conf[0]
-                        class_name = class_names[cls]
-                        
-                        if conf >= Higher_Confidence_Items.get(class_name, General_Confidence_Min):
-                            if class_name in mutually_exclusive_items:
-                                confidences[class_name] = max(confidences[class_name], conf)
-                            else:
-                                image_detections[class_name] += 1
-                                
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.putText(img, f"{class_name} ({conf:.2f})", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 
-                                    0.625 if len(image_paths) == 1 else 1.25 if len(image_paths) <= 4 else 1.575,
-                                    (0, 255, 0), 2 if len(image_paths) == 1 else 4 if len(image_paths) <= 4 else 5)
+                if img is None:
+                    continue
 
+                # Track detections for this image
+                image_detections = {class_name: 0 for class_name in CLASS_NAMES}
+                results = model(img, verbose=False)
+                
+                for result in results:
+                    for box in result.boxes.cpu().numpy():
+                        class_id = int(box.cls[0])
+                        confidence = box.conf[0]
+                        
+                        if class_id < len(CLASS_NAMES):
+                            class_name = CLASS_NAMES[class_id]
+                            min_confidence = HIGHER_CONFIDENCE_ITEMS.get(class_name, GENERAL_CONFIDENCE_MIN)
+                            
+                            if confidence >= min_confidence:
+                                if class_name in ['switch', 'oled', 'lite', 'switch_box', 'oled_box', 'lite_box', 'switch_in_tv', 'oled_in_tv']:
+                                    confidences[class_name] = max(confidences[class_name], confidence)
+                                else:
+                                    image_detections[class_name] += 1
+                                
+                                # Draw bounding box
+                                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                cv2.putText(img, f"{class_name} ({confidence:.2f})", (x1, y1 - 10),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.625, (0, 255, 0), 2)
+
+                # Update overall detected objects with max from this image
                 for class_name, count in image_detections.items():
                     detected_objects[class_name].append(count)
 
-                processed_images.append(Image.fromarray(cv2.cvtColor(cv2.copyMakeBorder(img, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=[0, 0, 0]), cv2.COLOR_BGR2RGB)))
+                # Convert to PIL Image for pygame compatibility
+                processed_images.append(Image.fromarray(cv2.cvtColor(
+                    cv2.copyMakeBorder(img, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=[0, 0, 0]),
+                    cv2.COLOR_BGR2RGB)))
+
             except Exception as e:
                 print(f"Error processing image {image_path}: {str(e)}")
+                continue
 
+        # Convert lists to max values
         final_detected_objects = {class_name: max(counts) if counts else 0 for class_name, counts in detected_objects.items()}
-
+        
         # Handle mutually exclusive items
-        selected_item = max(confidences.items(), key=lambda x: x[1])[0] if any(confidences.values()) else None
-
-        if selected_item:
-            # Set the selected item to 1 and all others to 0
-            for item in mutually_exclusive_items:
-                final_detected_objects[item] = 1 if item == selected_item else 0
-
-            # Handle accessory incompatibilities
-            if selected_item in ['oled', 'oled_in_tv', 'oled_box']:
-                final_detected_objects['tv_black'] = 0
-            elif selected_item in ['switch', 'switch_in_tv', 'switch_box']:
-                final_detected_objects['tv_white'] = 0
-            
-            if selected_item in ['lite', 'lite_box', 'switch_box', 'oled_box']:
-                final_detected_objects['comfort_h'] = 0
-            
-            if selected_item in ['switch_in_tv', 'switch_box']:
-                final_detected_objects['tv_black'] = 0
-            
-            if selected_item in ['oled_in_tv', 'oled_box']:
-                final_detected_objects['tv_white'] = 0
-
-        # Handle OLED in title - MODIFIED SECTION
-        listing_title_lower = listing_title.lower()
-        listing_description_lower = listing_description.lower()
-        if (('oled' in listing_title_lower in listing_title_lower) or 
-            ('oled' in listing_description_lower in listing_description_lower)) and \
-        'not oled' not in listing_title_lower and 'not oled' not in listing_description_lower:
-            for old, new in [('switch', 'oled'), ('switch_in_tv', 'oled_in_tv'), ('switch_box', 'oled_box')]:
-                if final_detected_objects.get(old, 0) > 0:
-                    final_detected_objects[old] = 0
-                    final_detected_objects[new] = 1
-
-        # Add anonymous games to detected objects
-        if anonymous_games_count > 0:
-            final_detected_objects['anonymous_games'] = anonymous_games_count
-
+        final_detected_objects = self.handle_mutually_exclusive_items_vinted(final_detected_objects, confidences)
+        
+        # NEW CODE: Cap all game classes at 1 per listing
+        # Define the game classes that need to be capped
+        game_classes_to_cap = [
+            '1_2_switch', 'animal_crossing', 'arceus_p', 'bow_z', 'bros_deluxe_m', 'crash_sand',
+            'dance', 'diamond_p', 'evee', 'fifa_23', 'fifa_24', 'gta', 'just_dance', 'kart_m', 'kirby',
+            'lets_go_p', 'links_z', 'luigis', 'mario_maker_2', 'mario_sonic', 'mario_tennis', 'minecraft',
+            'minecraft_dungeons', 'minecraft_story', 'miscellanious_sonic', 'odyssey_m', 'other_mario',
+            'party_m', 'rocket_league', 'scarlet_p', 'shield_p', 'shining_p', 'skywards_z', 'smash_bros',
+            'snap_p', 'splatoon_2', 'splatoon_3', 'super_m_party', 'super_mario_3d', 'switch_sports',
+            'sword_p', 'tears_z', 'violet_p'
+        ]
+        
+        # Cap each game class at maximum 1
+        games_capped = []
+        for game_class in game_classes_to_cap:
+            if final_detected_objects.get(game_class, 0) > 1:
+                original_count = final_detected_objects[game_class]
+                final_detected_objects[game_class] = 1
+                games_capped.append(f"{game_class}: {original_count} -> 1")
+        
+        # Print capping information if any games were capped
+        if games_capped:
+            print(f"🎮 GAMES CAPPED: {', '.join(games_capped)}")
+        
         return final_detected_objects, processed_images
 
     def fetch_price(self, class_name):
@@ -1573,7 +1540,7 @@ class VintedScraper:
 
     def scrape_item_details(self, driver):
         """
-        Enhanced scraper with better price extraction
+        Enhanced scraper with better price extraction and FIXED upload date extraction
         """
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "p.web_ui__Text__subtitle"))
@@ -1585,15 +1552,47 @@ class VintedScraper:
             "second_price": "div.web_ui__Text__title.web_ui__Text__clickable.web_ui__Text__underline-none",
             "postage": "h3[data-testid='item-shipping-banner-price']",
             "description": "span.web_ui__Text__text.web_ui__Text__body.web_ui__Text__left.web_ui__Text__format span",
-            "uploaded": "span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold",
+            # FIXED: Updated selector for upload date based on the HTML structure you provided
+            "uploaded": "div[itemprop='upload_date'] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold",
         }
 
         data = {}
         for key, sel in fields.items():
             try:
-                data[key] = driver.find_element(By.CSS_SELECTOR, sel).text
+                element = driver.find_element(By.CSS_SELECTOR, sel)
+                data[key] = element.text
+                print(f"Successfully extracted {key}: {element.text}")
             except NoSuchElementException:
-                data[key] = None
+                print(f"Could not find element for {key} using selector: {sel}")
+                # Fallback selectors for upload date
+                if key == "uploaded":
+                    fallback_selectors = [
+                        # Alternative selectors for upload date
+                        "div.details-list__item-value[itemprop='upload_date'] span",
+                        "span[class*='web_ui__Text__subtitle'][class*='bold']",
+                        # Even more generic fallback
+                        "div[itemprop='upload_date']",
+                    ]
+                    
+                    for fallback_sel in fallback_selectors:
+                        try:
+                            element = driver.find_element(By.CSS_SELECTOR, fallback_sel)
+                            data[key] = element.text
+                            print(f"Successfully extracted {key} using fallback selector '{fallback_sel}': {element.text}")
+                            break
+                        except NoSuchElementException:
+                            continue
+                    else:
+                        # If all fallback selectors fail, try XPath
+                        try:
+                            element = driver.find_element(By.XPATH, "//div[@itemprop='upload_date']//span[contains(@class, 'web_ui__Text__bold')]")
+                            data[key] = element.text
+                            print(f"Successfully extracted {key} using XPath: {element.text}")
+                        except NoSuchElementException:
+                            data[key] = "Upload date not found"
+                            print(f"Failed to extract {key} - setting to default")
+                else:
+                    data[key] = None
 
         # Keep title formatting for pygame display
         if data["title"]:
@@ -1840,6 +1839,7 @@ class VintedScraper:
     def perform_detection_on_listing_images(self, model, listing_dir):
         """
         Enhanced object detection with all Facebook exceptions and logic
+        PLUS Vinted-specific post-scan game deduplication
         """
         if not os.path.isdir(listing_dir):
             return {}, []
@@ -1902,6 +1902,31 @@ class VintedScraper:
         
         # Handle mutually exclusive items
         final_detected_objects = self.handle_mutually_exclusive_items_vinted(final_detected_objects, confidences)
+        
+        # VINTED-SPECIFIC POST-SCAN GAME DEDUPLICATION
+        # Define game classes that should be capped at 1 per listing
+        vinted_game_classes = [
+            '1_2_switch', 'animal_crossing', 'arceus_p', 'bow_z', 'bros_deluxe_m', 'crash_sand',
+            'dance', 'diamond_p', 'evee', 'fifa_23', 'fifa_24', 'gta', 'just_dance', 'kart_m', 'kirby',
+            'lets_go_p', 'links_z', 'luigis', 'mario_maker_2', 'mario_sonic', 'mario_tennis', 'minecraft',
+            'minecraft_dungeons', 'minecraft_story', 'miscellanious_sonic', 'odyssey_m', 'other_mario',
+            'party_m', 'rocket_league', 'scarlet_p', 'shield_p', 'shining_p', 'skywards_z', 'smash_bros',
+            'snap_p', 'splatoon_2', 'splatoon_3', 'super_m_party', 'super_mario_3d', 'switch_sports',
+            'sword_p', 'tears_z', 'violet_p'
+        ]
+        
+        # Cap each game type to maximum 1 per listing for Vinted
+        games_before_cap = {}
+        for game_class in vinted_game_classes:
+            if final_detected_objects.get(game_class, 0) > 1:
+                games_before_cap[game_class] = final_detected_objects[game_class]
+                final_detected_objects[game_class] = 1
+        
+        # Log the capping if any games were capped
+        if games_before_cap:
+            print("🎮 VINTED GAME DEDUPLICATION APPLIED:")
+            for game, original_count in games_before_cap.items():
+                print(f"  • {game}: {original_count} → 1")
         
         return final_detected_objects, processed_images
 
@@ -2372,29 +2397,4 @@ class VintedScraper:
         global suitable_listings, current_listing_index, recent_listings, current_listing_title, current_listing_price
         global current_listing_description, current_listing_join_date, current_detected_items, current_profit
         global current_listing_images, current_listing_url, current_suitability, current_expected_revenue
-        
-        # Initialize ALL global variables properly
-        suitable_listings = []
-        current_listing_index = 0
-        
-        # **CRITICAL FIX: Initialize recent_listings for website navigation**
-        recent_listings = {
-            'listings': [],
-            'current_index': 0
-        }
-        
-        # Initialize all current listing variables
-        current_listing_title = "No title"
-        current_listing_description = "No description"
-        current_listing_join_date = "No join date"
-        current_listing_price = "0"
-        current_expected_revenue = "0"
-        current_profit = "0"
-        current_detected_items = "None"
-        current_listing_images = []
-        current_listing_url = ""
-        current_suitability = "Suitability unknown"
-        
-        # Initialize pygame display with default values
-        self.update_listing_details("", "", "", "0", 0, 0, {}, [], {})
         
