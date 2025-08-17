@@ -1,7 +1,3 @@
-        # Initialize ALL global variables properly
-        suitable_listings = []
-        current_listing_index = 0
-        
         # **CRITICAL FIX: Initialize recent_listings for website navigation**
         recent_listings = {
             'listings': [],

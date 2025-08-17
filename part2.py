@@ -787,7 +787,8 @@ class VintedScraper:
             'profit': pygame.font.Font(None, 36),
             'items': pygame.font.Font(None, 30),
             'click': pygame.font.Font(None, 28),
-            'suitability': pygame.font.Font(None, 28)
+            'suitability': pygame.font.Font(None, 28),
+            'reviews': pygame.font.Font(None, 28)  # New font for seller reviews
         }
         dragging = False
         resizing = False
@@ -879,6 +880,8 @@ class VintedScraper:
                     self.render_text_in_rect(screen, fonts['click'], click_text, rect, (255, 0, 0))
                 elif i == 5:  # Rectangle 6 (index 5) - Suitability Reason
                     self.render_text_in_rect(screen, fonts['suitability'], current_suitability, rect, (255, 0, 0) if "Unsuitable" in current_suitability else (0, 255, 0))
+                elif i == 6:  # Rectangle 7 (index 6) - NEW: Seller Reviews
+                    self.render_text_in_rect(screen, fonts['reviews'], current_seller_reviews, rect, (0, 0, 128))  # Dark blue color
 
             screen.blit(fonts['title'].render("LOCKED" if LOCK_POSITION else "UNLOCKED", True, (255, 0, 0) if LOCK_POSITION else (0, 255, 0)), (10, 10))
 
@@ -1045,10 +1048,10 @@ class VintedScraper:
                 print(f"Error rendering text: {e}")
                 continue  # Skip this line if rendering fails
         
-    def update_listing_details(self, title, description, join_date, price, expected_revenue, profit, detected_items, processed_images, bounding_boxes, url=None, suitability=None):
+    def update_listing_details(self, title, description, join_date, price, expected_revenue, profit, detected_items, processed_images, bounding_boxes, url=None, suitability=None, seller_reviews=None):
         global current_listing_title, current_listing_description, current_listing_join_date, current_listing_price
         global current_expected_revenue, current_profit, current_detected_items, current_listing_images 
-        global current_bounding_boxes, current_listing_url, current_suitability 
+        global current_bounding_boxes, current_listing_url, current_suitability, current_seller_reviews
 
         # Close and clear existing images
         if 'current_listing_images' in globals():
@@ -1100,6 +1103,8 @@ class VintedScraper:
         current_profit = f"Profit:\n£{profit:.2f}" if profit else "Profit:\n£0.00"
         current_listing_url = url
         current_suitability = suitability if suitability else "Suitability unknown"
+        current_seller_reviews = seller_reviews if seller_reviews else "No reviews yet"
+
 
     def vinted_button_clicked_enhanced(self, url):
         """
@@ -1540,7 +1545,7 @@ class VintedScraper:
 
     def scrape_item_details(self, driver):
         """
-        Enhanced scraper with better price extraction and FIXED upload date extraction
+        Enhanced scraper with better price extraction and seller reviews
         """
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "p.web_ui__Text__subtitle"))
@@ -1552,45 +1557,32 @@ class VintedScraper:
             "second_price": "div.web_ui__Text__title.web_ui__Text__clickable.web_ui__Text__underline-none",
             "postage": "h3[data-testid='item-shipping-banner-price']",
             "description": "span.web_ui__Text__text.web_ui__Text__body.web_ui__Text__left.web_ui__Text__format span",
-            # FIXED: Updated selector for upload date based on the HTML structure you provided
-            "uploaded": "div[itemprop='upload_date'] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold",
+            "uploaded": "span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold",
+            "seller_reviews": "span.web_ui__Text__text.web_ui__Text__caption.web_ui__Text__left",  # New field for seller reviews
         }
 
         data = {}
         for key, sel in fields.items():
             try:
-                element = driver.find_element(By.CSS_SELECTOR, sel)
-                data[key] = element.text
-                print(f"Successfully extracted {key}: {element.text}")
-            except NoSuchElementException:
-                print(f"Could not find element for {key} using selector: {sel}")
-                # Fallback selectors for upload date
-                if key == "uploaded":
-                    fallback_selectors = [
-                        # Alternative selectors for upload date
-                        "div.details-list__item-value[itemprop='upload_date'] span",
-                        "span[class*='web_ui__Text__subtitle'][class*='bold']",
-                        # Even more generic fallback
-                        "div[itemprop='upload_date']",
-                    ]
+                if key == "seller_reviews":
+                    # Special handling for seller reviews - get the text content
+                    element = driver.find_element(By.CSS_SELECTOR, sel)
+                    text = element.text.strip()
                     
-                    for fallback_sel in fallback_selectors:
-                        try:
-                            element = driver.find_element(By.CSS_SELECTOR, fallback_sel)
-                            data[key] = element.text
-                            print(f"Successfully extracted {key} using fallback selector '{fallback_sel}': {element.text}")
-                            break
-                        except NoSuchElementException:
-                            continue
+                    # Check if it's the "No reviews yet" case or a number
+                    if text == "No reviews yet":
+                        data[key] = "No reviews yet"
                     else:
-                        # If all fallback selectors fail, try XPath
-                        try:
-                            element = driver.find_element(By.XPATH, "//div[@itemprop='upload_date']//span[contains(@class, 'web_ui__Text__bold')]")
-                            data[key] = element.text
-                            print(f"Successfully extracted {key} using XPath: {element.text}")
-                        except NoSuchElementException:
-                            data[key] = "Upload date not found"
-                            print(f"Failed to extract {key} - setting to default")
+                        # Extract just the number if it's numeric
+                        if text.isdigit():
+                            data[key] = f"Reviews: {text}"
+                        else:
+                            data[key] = "No reviews yet"
+                else:
+                    data[key] = driver.find_element(By.CSS_SELECTOR, sel).text
+            except NoSuchElementException:
+                if key == "seller_reviews":
+                    data[key] = "No reviews yet"
                 else:
                     data[key] = None
 
@@ -1616,6 +1608,9 @@ class VintedScraper:
         listing_price = self.extract_vinted_price(price_text)
         postage = self.extract_price(details.get("postage", "0"))
         total_price = listing_price + postage
+
+        # Get seller reviews
+        seller_reviews = details.get("seller_reviews", "No reviews yet")
 
         # Create basic listing info for suitability checking
         listing_info = {
@@ -1702,7 +1697,8 @@ class VintedScraper:
             'processed_images': processed_images,
             'bounding_boxes': {'image_paths': [], 'detected_objects': detected_objects},
             'url': url,
-            'suitability': suitability_reason
+            'suitability': suitability_reason,
+            'seller_reviews': seller_reviews  # NEW: Add seller reviews to listing info
         }
 
         # Add to suitable listings based on VINTED_SHOW_ALL_LISTINGS setting
@@ -2397,4 +2393,8 @@ class VintedScraper:
         global suitable_listings, current_listing_index, recent_listings, current_listing_title, current_listing_price
         global current_listing_description, current_listing_join_date, current_detected_items, current_profit
         global current_listing_images, current_listing_url, current_suitability, current_expected_revenue
+        
+        # Initialize ALL global variables properly
+        suitable_listings = []
+        current_listing_index = 0
         
