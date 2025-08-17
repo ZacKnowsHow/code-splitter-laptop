@@ -143,15 +143,15 @@ recent_listings = {
 
 MAX_LISTINGS_TO_SCAN = 50
 REFRESH_AND_RESCAN = True  # Set to False to disable refresh functionality
-MAX_LISTINGS_VINTED_TO_SCAN = 10  # Maximum listings to scan before refresh
-wait_after_max_reached_vinted = 10  # Seconds to wait between refresh cycles (5 minutes)
+MAX_LISTINGS_VINTED_TO_SCAN = 200  # Maximum listings to scan before refresh
+wait_after_max_reached_vinted = 30  # Seconds to wait between refresh cycles (5 minutes)
 VINTED_SCANNED_IDS_FILE = "vinted_scanned_ids.txt"
 FAILURE_REASON_LISTED = True
 REPEAT_LISTINGS = True
 WAIT_TIME_AFTER_REFRESH = 125
 LOCK_POSITION = True
 SHOW_ALL_LISTINGS = True
-VINTED_SHOW_ALL_LISTINGS = True
+VINTED_SHOW_ALL_LISTINGS = False
 SHOW_PARTIALLY_SUITABLE = False
 setup_website = False
 send_message = True
@@ -192,7 +192,7 @@ description_forbidden_words = ['faulty', 'not post', 'jailbreak', 'scam', 'visit
 CONFIG_FILE = r"C:\Users\zacha\Downloads\square_configuratgion.json"
 
 
-model_weights = r"C:\Users\ZacKnowsHow\Downloads\best.pt"
+model_weights = r"C:\Users\zacha\Downloads\best.pt"
 class_names = [
    '1_2_switch', 'animal_crossing', 'arceus_p', 'bow_z', 'bros_deluxe_m', 'comfort_h',
    'comfort_h_joy', 'controller', 'crash_sand', 'dance', 'diamond_p', 'evee',
@@ -3671,7 +3671,7 @@ class VintedScraper:
         # default = laptop
         
         # Core stability arguments
-        #chrome_opts.add_argument("--headless")
+        chrome_opts.add_argument("--headless")
         chrome_opts.add_argument("--no-sandbox")
         chrome_opts.add_argument("--disable-dev-shm-usage")
         chrome_opts.add_argument("--disable-gpu")
@@ -3763,7 +3763,7 @@ class VintedScraper:
             # Fallback: Remove problematic arguments
             fallback_opts = Options()
             fallback_opts.add_experimental_option("prefs", prefs)
-            #fallback_opts.add_argument("--headless")
+            fallback_opts.add_argument("--headless")
             fallback_opts.add_argument("--no-sandbox")
             fallback_opts.add_argument("--disable-dev-shm-usage")
             fallback_opts.add_argument("--disable-gpu")
@@ -3795,7 +3795,7 @@ class VintedScraper:
         
         fallback_opts = Options()
         fallback_opts.add_experimental_option("prefs", prefs)
-        #fallback_opts.add_argument("--headless")
+        fallback_opts.add_argument("--headless")
         fallback_opts.add_argument("--no-sandbox")
         fallback_opts.add_argument("--disable-dev-shm-usage")
         fallback_opts.add_argument("--disable-gpu")
@@ -4553,6 +4553,14 @@ class VintedScraper:
         """
         global suitable_listings, current_listing_index
         
+        # CLEAR THE VINTED SCANNED IDS FILE AT THE BEGINNING OF EACH RUN
+        try:
+            with open(VINTED_SCANNED_IDS_FILE, 'w') as f:
+                pass  # This creates an empty file, clearing any existing content
+            print(f"✅ Cleared {VINTED_SCANNED_IDS_FILE} at the start of the run")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not clear {VINTED_SCANNED_IDS_FILE}: {e}")
+        
         # Clear previous results
         suitable_listings.clear()
         current_listing_index = 0
@@ -4583,7 +4591,7 @@ class VintedScraper:
         driver.get(f"{BASE_URL}?{urlencode(params)}")
         main = driver.current_window_handle
 
-        # Load previously scanned listing IDs
+        # Load previously scanned listing IDs (this will now be empty since we cleared the file)
         scanned_ids = self.load_scanned_vinted_ids()
         print(f"📚 Loaded {len(scanned_ids)} previously scanned listing IDs")
 
@@ -4730,14 +4738,9 @@ class VintedScraper:
             else:
                 print("📄 No more pages and no max reached - refreshing for new listings")
                 self.refresh_vinted_page_and_wait(driver, is_first_refresh)
-            
-            # Update cycle counters
+
             refresh_cycle += 1
             is_first_refresh = False
-            
-            print(f"✅ Completed refresh cycle {refresh_cycle - 1}")
-            print(f"📊 Total listings processed so far: {overall_listing_counter}")
-            print(f"📚 Total unique IDs tracked: {len(scanned_ids)}")
 
     def start_cloudflare_tunnel(self, port=5000):
         """
