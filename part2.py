@@ -1,20 +1,3 @@
-        visible_listings_scanned = 0
-        global suitable_listings, current_listing_index, duplicate_counter, scanned_urls 
-        marketplace_url = f"https://www.facebook.com/marketplace/search?query={search_query}" 
-
-        listing_queue = []  # Maintain as list for ordered processing
-        no_new_listings_count = 0 
-        suitability_reason = "Not processed"
-        profit_suitability = False
-        first_scan = True 
-        scanned_urls = []  # Maintain as list for ordered processing
-        consecutive_duplicate_count = 0 
-
-        scanned_urls_file = "scanned_urls.txt" 
-        try: 
-            with open(scanned_urls_file, 'r') as f: 
-                scanned_urls = [line.strip() for line in f if line.strip()]  # Read non-empty lines
-        except FileNotFoundError: 
             print("No previous scanned URLs file found. Starting fresh.") 
 
         # Clear the file at start
@@ -1271,7 +1254,7 @@ class VintedScraper:
         # default = laptop
         
         # Core stability arguments
-        #chrome_opts.add_argument("--headless")
+        chrome_opts.add_argument("--headless")
         chrome_opts.add_argument("--no-sandbox")
         chrome_opts.add_argument("--disable-dev-shm-usage")
         chrome_opts.add_argument("--disable-gpu")
@@ -1363,7 +1346,7 @@ class VintedScraper:
             # Fallback: Remove problematic arguments
             fallback_opts = Options()
             fallback_opts.add_experimental_option("prefs", prefs)
-            #fallback_opts.add_argument("--headless")
+            fallback_opts.add_argument("--headless")
             fallback_opts.add_argument("--no-sandbox")
             fallback_opts.add_argument("--disable-dev-shm-usage")
             fallback_opts.add_argument("--disable-gpu")
@@ -1395,7 +1378,7 @@ class VintedScraper:
         
         fallback_opts = Options()
         fallback_opts.add_experimental_option("prefs", prefs)
-        #fallback_opts.add_argument("--headless")
+        fallback_opts.add_argument("--headless")
         fallback_opts.add_argument("--no-sandbox")
         fallback_opts.add_argument("--disable-dev-shm-usage")
         fallback_opts.add_argument("--disable-gpu")
@@ -2153,6 +2136,14 @@ class VintedScraper:
         """
         global suitable_listings, current_listing_index
         
+        # CLEAR THE VINTED SCANNED IDS FILE AT THE BEGINNING OF EACH RUN
+        try:
+            with open(VINTED_SCANNED_IDS_FILE, 'w') as f:
+                pass  # This creates an empty file, clearing any existing content
+            print(f"✅ Cleared {VINTED_SCANNED_IDS_FILE} at the start of the run")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not clear {VINTED_SCANNED_IDS_FILE}: {e}")
+        
         # Clear previous results
         suitable_listings.clear()
         current_listing_index = 0
@@ -2183,7 +2174,7 @@ class VintedScraper:
         driver.get(f"{BASE_URL}?{urlencode(params)}")
         main = driver.current_window_handle
 
-        # Load previously scanned listing IDs
+        # Load previously scanned listing IDs (this will now be empty since we cleared the file)
         scanned_ids = self.load_scanned_vinted_ids()
         print(f"📚 Loaded {len(scanned_ids)} previously scanned listing IDs")
 
@@ -2330,14 +2321,9 @@ class VintedScraper:
             else:
                 print("📄 No more pages and no max reached - refreshing for new listings")
                 self.refresh_vinted_page_and_wait(driver, is_first_refresh)
-            
-            # Update cycle counters
+
             refresh_cycle += 1
             is_first_refresh = False
-            
-            print(f"✅ Completed refresh cycle {refresh_cycle - 1}")
-            print(f"📊 Total listings processed so far: {overall_listing_counter}")
-            print(f"📚 Total unique IDs tracked: {len(scanned_ids)}")
 
     def start_cloudflare_tunnel(self, port=5000):
         """
@@ -2398,3 +2384,17 @@ class VintedScraper:
         }
         
         # Initialize all current listing variables
+        current_listing_title = "No title"
+        current_listing_description = "No description"
+        current_listing_join_date = "No join date"
+        current_listing_price = "0"
+        current_expected_revenue = "0"
+        current_profit = "0"
+        current_detected_items = "None"
+        current_listing_images = []
+        current_listing_url = ""
+        current_suitability = "Suitability unknown"
+        
+        # Initialize pygame display with default values
+        self.update_listing_details("", "", "", "0", 0, 0, {}, [], {})
+        
