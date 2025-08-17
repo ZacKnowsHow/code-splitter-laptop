@@ -4819,7 +4819,7 @@ class VintedScraper:
         # Initialize pygame display with default values
         self.update_listing_details("", "", "", "0", 0, 0, {}, [], {})
         
-        # Start Flask app in separate thread
+        # Start Flask app in separate thread.
         flask_thread = threading.Thread(target=self.run_flask_app)
         flask_thread.daemon = True
         flask_thread.start()
