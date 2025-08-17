@@ -19,7 +19,7 @@
         # Initialize pygame display with default values
         self.update_listing_details("", "", "", "0", 0, 0, {}, [], {})
         
-        # Start Flask app in separate thread
+        # Start Flask app in separate thread.
         flask_thread = threading.Thread(target=self.run_flask_app)
         flask_thread.daemon = True
         flask_thread.start()
@@ -47,6 +47,6 @@ if __name__ == "__main__":
         globals()['vinted_scraper_instance'] = scraper
         
         # Replace the normal search with enhanced version in the run method
-        # Modify the run() method to use search_vinted_enhanced instead of search_vinted
+        # Modify the run() method to use search_vinted_enhanced instead of search_vinted.
     
     scraper.run()
