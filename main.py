@@ -3453,7 +3453,7 @@ class VintedScraper:
         global current_expected_revenue, current_profit, current_detected_items, current_listing_images 
         global current_bounding_boxes, current_listing_url, current_suitability, current_seller_reviews
 
-        # Close and clear existing images
+        # Close and clear existing image
         if 'current_listing_images' in globals():
             for img in current_listing_images:
                 try:
